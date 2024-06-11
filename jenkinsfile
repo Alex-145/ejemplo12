@@ -1,60 +1,112 @@
 pipeline {
     agent any
 
-    tools {
-        // Install the Maven version configured as "M3" and add it to the path.
-        maven "MAVEN_HOME"
-    }
-
     stages {
         stage('Clone') {
             steps {
-                timeout(time: 2, unit: 'MINUTES'){
+                timeout(time: 2, unit: 'MINUTES') {
                     git branch: 'main', credentialsId: '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', url: 'https://github.com/Alex-145/ejemplo12.git'
+                }
+            }
+        }
+        stage('Install Dependencies') {
+            steps {
+                timeout(time: 8, unit: 'MINUTES') {
+                    dir('C:/Users/Lino/Desktop/testing/ejemplo1') {
+                        sh '''
+                        # Instalar dependencias de Composer
+                        composer install --no-interaction --prefer-dist --optimize-autoloader
+
+                        # Instalar dependencias de npm
+                        npm install
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Set Up Environment') {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    dir('C:/Users/Lino/Desktop/testing/ejemplo1') {
+                        sh '''
+                        # Crear el archivo .env si no existe
+                        if [ ! -f .env ]; then
+                            cp .env.example .env
+                            php artisan key:generate
+                        fi
+                        '''
+                    }
                 }
             }
         }
         stage('Build') {
             steps {
-                timeout(time: 8, unit: 'MINUTES'){
-                    sh "mvn -DskipTests clean package -f SysAsistenciaAn/pom.xml"
+                timeout(time: 8, unit: 'MINUTES') {
+                    dir('C:/Users/Lino/Desktop/testing/ejemplo1') {
+                        sh '''
+                        # Construir los assets usando Laravel Mix
+                        npm run production
+                        '''
+                    }
+                }
+            }
+        }
+        stage('Run Migrations') {
+            steps {
+                timeout(time: 4, unit: 'MINUTES') {
+                    dir('C:/Users/Lino/Desktop/testing/ejemplo1') {
+                        sh '''
+                        # Ejecutar migraciones
+                        php artisan migrate --force
+                        '''
+                    }
                 }
             }
         }
         stage('Test') {
             steps {
-                timeout(time: 8, unit: 'MINUTES'){
-                    // Se cambia <test> por <install> para que se genere el reporte de jacoco
-                    sh "mvn clean install -f SysAsistenciaAn/pom.xml"
+                timeout(time: 8, unit: 'MINUTES') {
+                    dir('C:/Users/Lino/Desktop/testing/ejemplo1') {
+                        sh '''
+                        # Ejecutar pruebas con PHPUnit
+                        ./vendor/bin/phpunit --coverage-text --coverage-clover=coverage.xml
+                        '''
+                    }
                 }
             }
         }
         stage('Sonar') {
             steps {
-                timeout(time: 4, unit: 'MINUTES'){
-                    withSonarQubeEnv('sonarqube'){
-                        sh "mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.9.0.2155:sonar -Pcoverage -f SysAsistenciaAn/pom.xml"
+                timeout(time: 4, unit: 'MINUTES') {
+                    dir('C:/Users/Lino/Desktop/testing/ejemplo1') {
+                        withSonarQubeEnv('sonarqube') {
+                            sh '''
+                            # Ejecutar análisis de SonarQube
+                            sonar-scanner -Dsonar.projectKey=tu_proyecto -Dsonar.php.coverage.reportPaths=coverage.xml
+                            '''
+                        }
                     }
                 }
             }
         }
         stage('Quality gate') {
             steps {
-
                 sleep(10) //seconds
-
-                timeout(time: 2, unit: 'MINUTES'){
+                timeout(time: 2, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
                 }
             }
         }
         stage('Deploy') {
             steps {
-			    timeout(time: 8, unit: 'MINUTES'){
-					// Ejecutar mvn spring-boot:run
-					echo "mvn spring-boot:run -f SysAsistenciaAn/pom.xml"
+                timeout(time: 8, unit: 'MINUTES') {
+                    dir('C:/Users/Lino/Desktop/testing/ejemplo1') {
+                        sh '''
+                        # Implementar la aplicación (puedes personalizar este paso según tu proceso de despliegue)
+                        echo "Desplegando la aplicación"
+                        '''
+                    }
                 }
-                //echo "mvn spring-boot:run -f SysAsistenciaAn/pom.xml"
             }
         }
     }
